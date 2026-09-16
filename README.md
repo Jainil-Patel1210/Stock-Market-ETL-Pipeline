@@ -73,4 +73,4 @@ python run_pipeline.py
 
 ## Author
 
-Jainil Patel — [GitHub](https://github.com/JainilPatel) · [LinkedIn](https://linkedin.com/in/JainilPatel)
+Jainil Patel — [GitHub](https://github.com/Jainil-Patel1210) · [LinkedIn](https://www.linkedin.com/in/jainil-patel-513790343/)
