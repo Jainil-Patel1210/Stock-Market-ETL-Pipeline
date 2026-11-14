@@ -1,0 +1,133 @@
+{
+  "Comment": "Stock market ETL: Ingest -> Silver -> data quality gate -> Gold, with SNS notifications",
+  "StartAt": "IngestRaw",
+  "States": {
+    "IngestRaw": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": {
+        "JobName": "stock-ingest-job"
+      },
+      "ResultPath": "$.ingest",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.error",
+          "Next": "NotifyFailure"
+        }
+      ],
+      "Next": "SilverTransform"
+    },
+    "SilverTransform": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": {
+        "JobName": "stock-silver-job"
+      },
+      "ResultPath": "$.silver",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.error",
+          "Next": "NotifyFailure"
+        }
+      ],
+      "Next": "CheckQuality"
+    },
+    "CheckQuality": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "REPLACE_WITH_LAMBDA_ARN",
+        "Payload": {
+          "bucket": "stock-etl-jainil-1101",
+          "prefix": "silver_metrics/stocks/"
+        }
+      },
+      "ResultSelector": {
+        "passed.$": "$.Payload.passed",
+        "failures.$": "$.Payload.failures",
+        "metrics.$": "$.Payload.metrics"
+      },
+      "ResultPath": "$.quality",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.error",
+          "Next": "NotifyFailure"
+        }
+      ],
+      "Next": "QualityGate"
+    },
+    "QualityGate": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.quality.passed",
+          "BooleanEquals": true,
+          "Next": "GoldAggregation"
+        }
+      ],
+      "Default": "NotifyQualityFailure"
+    },
+    "GoldAggregation": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": {
+        "JobName": "stock-gold-job"
+      },
+      "ResultPath": "$.gold",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.error",
+          "Next": "NotifyFailure"
+        }
+      ],
+      "Next": "NotifySuccess"
+    },
+    "NotifySuccess": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "REPLACE_WITH_YOUR_SNS_TOPIC_ARN",
+        "Subject": "Stock ETL pipeline succeeded",
+        "Message.$": "States.Format('Silver, quality gate and Gold all passed. Silver rows: {}. Newest trade date: {}. Execution: {}', $.quality.metrics.silver_rows, $.quality.metrics.max_trade_date, $$.Execution.Name)"
+      },
+      "End": true
+    },
+    "NotifyQualityFailure": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "REPLACE_WITH_YOUR_SNS_TOPIC_ARN",
+        "Subject": "Stock ETL data quality gate FAILED",
+        "Message.$": "States.Format('Gold was NOT updated. Failures: {}. Execution: {}', States.JsonToString($.quality.failures), $$.Execution.Name)"
+      },
+      "Next": "PipelineFailed"
+    },
+    "NotifyFailure": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "REPLACE_WITH_YOUR_SNS_TOPIC_ARN",
+        "Subject": "Stock ETL pipeline FAILED",
+        "Message.$": "States.Format('Pipeline failed. Execution: {}. Error: {}', $$.Execution.Name, $.error.Error)"
+      },
+      "Next": "PipelineFailed"
+    },
+    "PipelineFailed": {
+      "Type": "Fail",
+      "Error": "PipelineFailed",
+      "Cause": "A job failed or the data quality gate rejected the data. See the failure email and the run logs."
+    }
+  }
+}
