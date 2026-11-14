@@ -53,6 +53,28 @@ flowchart TB
     SF -.-> SNS
 ```
 
+## Screenshots
+
+**Orchestration: a successful Step Functions run (failure paths shown dashed)**
+
+![Step Functions run](docs/screenshots/01-step-functions-success.png)
+
+**Medallion layout in S3**
+
+![S3 layers](docs/screenshots/03-s3-layers.png)
+
+**Gold layer queried in Athena**
+
+![Athena query](docs/screenshots/04-athena-query.png)
+
+**Quality-gate success notification**
+
+![SNS email](docs/screenshots/05-quality-gate-email.png)
+
+**Scheduled daily run (EventBridge Scheduler)**
+
+![EventBridge schedule](docs/screenshots/06-eventbridge-schedule.png)
+
 ## Pipeline stages
 
 | Stage | AWS service | Code | Output |
